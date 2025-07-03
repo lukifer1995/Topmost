@@ -4,16 +4,16 @@ setlocal ENABLEDELAYEDEXPANSION
 
 cd /d "%~dp0"
 
-
 set "REPORT=temp_summary.txt"
 
-:: Lấy đường dẫn Desktop của người dùng hiện tại
+:: Get current user's Desktop path
 set "DESKTOP=%USERPROFILE%\Desktop"
 set "LOG=%DESKTOP%\signature_result.txt"
 
+> "%LOG%" echo === DIGITAL SIGNATURE VERIFICATION RESULT ===
 
-> "%LOG%" echo === KẾT QUẢ KIỂM TRA CHỮ KÝ SỐ ===
 
+call :CheckFile "C:\Windows\System32\dashost.exe"
 call :CheckFile "C:\Windows\System32\svchost.exe"
 call :CheckFile "C:\Windows\System32\services.exe"
 call :CheckFile "C:\Windows\System32\lsass.exe"
@@ -35,17 +35,17 @@ echo ----- %FILE% ----- >> "%LOG%"
 if exist "%FILE%" (
     sigcheck64.exe -nobanner -q -v "%FILE%" >> "%LOG%" 2>&1
     if errorlevel 1 (
-        echo ⚠️ Lỗi khi kiểm tra file này >> "%LOG%"
+        echo ⚠️ Error occurred during file verification >> "%LOG%"
     )
 ) else (
-    echo ❌ Không tìm thấy file >> "%LOG%"
+    echo ❌ File not found >> "%LOG%"
 )
 exit /b
 
 :AnalyzeResult
 set /a Signed=0
 set /a Failed=0
-> "%REPORT%" echo === BÁO CÁO TỔNG HỢP ===
+> "%REPORT%" echo === SUMMARY REPORT ===
 
 for /f "tokens=1,* delims=:" %%A in ('findstr /I /C:"Verified:" "%LOG%"') do (
     set "status=%%B"
@@ -61,9 +61,17 @@ for /f "tokens=1,* delims=:" %%A in ('findstr /I /C:"Verified:" "%LOG%"') do (
 for /f %%C in ('findstr /C:"----- " "%LOG%" ^| find /C /V ""') do set Total=%%C
 
 echo. >> "%REPORT%"
-echo Tổng số file kiểm tra: %Total% >> "%REPORT%"
-echo ✅ Verified: %Signed% file >> "%REPORT%"
-echo ❌ Không xác định / Lỗi: %Failed% file >> "%REPORT%"
+echo. 
+
+echo Total files checked: %Total% >> "%REPORT%"
+echo Total files checked: %Total%
+
+echo [OK] Verified: %Signed% file(s) >> "%REPORT%"
+echo [OK] Verified: %Signed% file(s)
+
+echo [X]  Unverified / Error: %Failed% file(s) >> "%REPORT%"
+echo [X]  Unverified / Error: %Failed% file(s)
+
 
 type "%REPORT%" >> "%LOG%"
 del "%REPORT%"
@@ -71,5 +79,6 @@ exit /b
 
 :End
 echo.
-echo === KIỂM TRA HOÀN TẤT ===
+echo === VERIFICATION COMPLETED ===
+:: start notepad.exe "%LOG%"
 pause

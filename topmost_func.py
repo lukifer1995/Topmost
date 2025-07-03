@@ -1,18 +1,12 @@
-# import psutil
-import os
 try:
     import win32gui, win32con, win32api, win32process
 except ImportError:
     os.system('pip install pywin32')
     import win32gui, win32con, win32api, win32process
 
-
-
 import keyboard
-from  multiprocessing import Process , Pipe
 import time
 import ctypes
-import threading
 import os
 
 

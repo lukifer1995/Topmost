@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, subprocess
 import time
 import ctypes
 import threading
@@ -14,12 +14,11 @@ def message_handler(mode, context, message):
 qInstallMessageHandler(message_handler)
 
 
-
 # Third-party
 import keyboard
 
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QHBoxLayout,
+    QApplication, QWidget, QLabel, QHBoxLayout, QFrame,
     QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import (
@@ -35,8 +34,8 @@ from PyQt5.QtGui import (
 from topmost_func import *
 from Arange import *
 from checkport import *
-from CPU import getCpuRam
-
+import ReadMessSpam
+import Searchbar
 
 #-----------------------------------------------------#
 #region UI
@@ -120,7 +119,7 @@ class TransparentMenu(QWidget):
             label = QLabel()
             label.setPixmap(pix)
             label.setFixedSize(IMG_SIZE, IMG_SIZE)
-            label.setMouseTracking(True)                            # <~~ Label phải class cha nên k có focus mouse tracking
+            label.setMouseTracking(True)    # <~~ Label phải class cha nên k có focus mouse tracking
             layout.addWidget(label, alignment=Qt.AlignCenter)
             self.labels.append(label)
 
@@ -168,7 +167,7 @@ class TransparentMenu(QWidget):
                 label.setStyleSheet("border: 3px solid red; border-radius: 10px;")
                 if i == 0: MESSAGE.emit('Arange', wait)
                 if i == 1: MESSAGE.emit('Panel', wait)
-                if i == 2: MESSAGE.emit('Kill Py', wait)
+                if i == 2: MESSAGE.emit('Kill py process', wait)
                 if i == 3: MESSAGE.emit('Private Space', wait)
             else:
                 label.setStyleSheet("border: none;")
@@ -273,7 +272,6 @@ class NotificationLabel(QLabel):
         shadow.setColor(QColor(121, 121, 121, 250)) 
         self.setGraphicsEffect(shadow)
 
-        # self.adjustSize()
 
         # Animation xuất hiện
         self.setWindowOpacity(0.01)
@@ -346,6 +344,14 @@ class NotificationManager:
 
     def add_notification(self, text: str, timeout: int = 10000, position='bottom_right'):
         label = NotificationLabel(text)
+        
+        
+        if any(s in text for s in ("Nguy hiểm", "🆘", "[!]")):
+            label.setStyleSheet(RED)
+        elif any(s in text for s in ("Cẩn thận", "🚩", "Error", "AccessDenied")):
+            label.setStyleSheet(YELLOW)
+
+
         label.position = position
         label.apply_alignment(position)
 
@@ -385,7 +391,7 @@ class NotificationManager:
             label.show_with_Notime(QPoint(x, y))
         elif position == 'bottom_left':
             x = screen.left() + NOTIFY_MARGIN
-            y = screen.bottom() - NOTIFY_MARGIN - (height + NOTIFY_SPACING) * index
+            y = screen.bottom() - NOTIFY_MARGIN - height - (NOTIFY_SPACING * index)
             label.show_with_Notime(QPoint(x, y))
         else:
             x, y = 0, 0
@@ -452,20 +458,29 @@ def turn_off_capslock():
 def KB_show_ui():
     overlay.show()
     menu.show()
-    # > Trên trái -> kiểm port
-    raw = getglobal_UnsafeSet()
-    if raw:
-        unssafe = list(raw)  # sao chép, tránh chạm vào list gốc
-        unssafe.insert(0, "----- PORT ĐÃ MỞ -----")
-        unssafe = "\n".join(unssafe)
-    else:
-        unssafe = ""
-    manager.signal.send_top_left.emit(unssafe, 3000)
+    searchbar.show()
+
+    # > Trên trái -> kiểm port Unsafe
+    unsafe_ports = list(getglobal_UnsafeSet() or [])
+    if unsafe_ports:
+        unsafe_ports.insert(0, "----- PORT ĐÃ MỞ -----")
+        manager.signal.send_top_left.emit("\n".join(unsafe_ports), 3000)
+
+    # > Trên phải -> kiểm port Safe
+    safe_ports = list(getglobal_safeSet() or [])
+    if safe_ports:
+        manager.signal.send_top_right.emit("\n".join(safe_ports), 3000)
+
+    # Focus vào khung nhập
+    searchbar.ensure_focus()
+    searchbar.line_edit.clear()
 
 
 def KB_hide_ui():
     manager.dismiss_manual_labels()
     menu.hide()
+    searchbar.hide()
+    searchbar.line_edit.clear()
     overlay.hide()
 #endregion
 
@@ -493,9 +508,19 @@ def func_panel():
     os.system(rf'C:\Windows\System32\cmd.exe /c "cd /d {dir_path} && start /b python {exe_name} && exit"')
 
 
-def func_killpy(): 
+def func_killpy():  # -> K dùng nữa
     os.system("taskkill /F /IM pythonw.exe")
     os.system("taskkill /F /IM python.exe")
+
+
+def func_ReadMessSpam():
+    global MESSAGE
+    # ReadMessSpam._set_global_toReadmess(MESSAGE)
+    result = ReadMessSpam.run()
+    if result:
+        MESSAGE.emit(f"[✓] {result}", 3000)
+        return
+
 #endregion
 
 
@@ -513,7 +538,7 @@ def wrap_checkport():
         result = format_port_data()
         if result:
             for line in result:
-                MESSAGE.emit(line, 4000)
+                MESSAGE.emit(line, 3000)
 
 
 if __name__ == "__main__":
@@ -535,30 +560,27 @@ if __name__ == "__main__":
 
     NOTIFY_STYLE = """
         QLabel {
-            color: rgba(100, 225, 150, 1);                       /* Chữ xanh đậm */
+            color: rgba(100, 225, 150, 1);
             font-size: 11pt;
             font-weight: bold;
             padding: 4px 6px;
         }
     """
-
-
-    # name = "topmost"
-    # name = name.lower()
-    # tasks = os.popen('tasklist').read().lower()
-    # if name in tasks:
-    #     os.system(f"taskkill /F /IM {name}")
-
+    YELLOW = NOTIFY_STYLE.replace('color: rgba(100, 225, 150, 1)', 'color: rgba(213, 150, 0, 1)')
+    RED    = NOTIFY_STYLE.replace('color: rgba(100, 225, 150, 1)', 'color: rgba(255, 0, 0, 0.9)')
 
     app = QApplication(sys.argv)
     img1 = QPixmap(r"D:\Data\Code Resource\circuit.png")
     img2 = QPixmap(r"D:\Data\Code Resource\Download Circuit logo design for free.ico")
-    img3 = QPixmap(r"D:\Code\itachi.ico")
-    IMG_PIXMAPS = [img1, img2, None, img3]
+    # img3 = QPixmap(r"D:\Data\Code Resource\mess.png")
+    img4 = QPixmap(r"D:\Code\itachi.ico")
+    IMG_PIXMAPS = [img1, img2, None, img4]
     IMG_PIXMAPS = [TransparentMenu.prepare_pixmap(p) for p in IMG_PIXMAPS]
 
 
     menu = TransparentMenu(IMG_PIXMAPS)
+    searchbar = Searchbar.TransparentSearchBar(IMG_PIXMAPS)
+
     overlay = Overlay()
     overlay.shiftSignal.connect(lambda d: menu.shift_current(d))
     overlay.selectSignal.connect(lambda: menu.excute_select_current())
@@ -577,13 +599,11 @@ if __name__ == "__main__":
     manager = NotificationManager()
     MESSAGE = manager.sent_notification_signal()
     MESSAGE.emit("Ready", 1000)     # 1 giây
+    Searchbar.send_func_module(manager)
 
 
-    thread = threading.Thread(target=wrap_checkport, daemon=True)
-    thread.start()
+    threading.Thread(target=wrap_checkport, daemon=True).start()
+    # threading.Thread(target=func_ReadMessSpam, daemon=True).start()
 
-
-    # manager.signal.send_top_left.emit(f"{port}", 5000)
-    # QTimer.singleShot(2000, lambda: MESSAGE.emit("1", 2000))
 
     sys.exit(app.exec_())

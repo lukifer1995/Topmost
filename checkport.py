@@ -1,10 +1,7 @@
 import psutil
 import socket
-import traceback
-import subprocess
 import re
 import wmi
-import os
 # Các PID hệ thống
 SYSTEM_PID = {0, 4}
 
@@ -36,14 +33,19 @@ SAFE_SYSTEM_PORTS = {
     5353, 5355, 49664, 49665, 49666, 49667, 49668, 49669    # Ephemeral fixed port (Windows service)
 }
 
+# # Tên tiến trình an toàn
+# SAFE_PROCESS_NAMES = {
+#     "system", "idle", "svchost.exe", "services.exe", 
+#     "lsass.exe", "wininit.exe", "csrss.exe",
+#     "winlogon.exe", "smss.exe", "explorer.exe", "taskhostw.exe"
+# }
 # Tên tiến trình an toàn
 SAFE_PROCESS_NAMES = {
-    "system", "idle", "svchost.exe", "services.exe", "lsass.exe", "wininit.exe", "csrss.exe",
-    "winlogon.exe", "smss.exe", "explorer.exe", "taskhostw.exe"
+    "system", "idle", 
 }
-
 # File thực thi hệ thống an toàn (lowercase, full path)
 SAFE_SYSTEM_EXECUTABLES = {
+    r"C:\Windows\System32\dashost.exe",
     r"C:\Windows\System32\svchost.exe",
     r"C:\Windows\System32\services.exe",
     r"C:\Windows\System32\lsass.exe",
@@ -159,8 +161,12 @@ def scan_ports():
 
 
 UNSAFESET = []
+UNSAFEEXE = set()
+SAFESET   = set()
 # UNSAFEPATH = "unsafe.txt"
 def getglobal_UnsafeSet():  return UNSAFESET
+def getglobal_UnsafePort():  return UNSAFEEXE
+def getglobal_safeSet():    return SAFESET
 
 
 def fixed_width(value, width, ellipsis=True):
@@ -183,27 +189,26 @@ def format_port_data():
 
     for port, pid, proto, status, exe, kind, explanation in data:
         if kind == '🔰 Safe':
+            if "exe" in exe:  SAFESET.add(exe.split('\\')[-1])
             continue
+        
         line = (
             f"{fixed_width(port, 8)} "
             f"{fixed_width(pid, 8)} "
             f"{fixed_width(proto, 8)} "
             f"{fixed_width(status, 15)} "
-            f"{fixed_width(exe, 90)}"
+            f"{fixed_width(exe, 70)}"
             f"{fixed_width(kind, 20)} "
             f"{explanation}"
         )
         unsafe_lines.append(line)
+        if port not in UNSAFEEXE:
+            UNSAFEEXE.add(UNSAFEEXE.add(exe.split('\\')[-1]))
 
         if line not in UNSAFESET :
             UNSAFESET.append(line)
             new_lines_to_append.append(line)
 
-    # # Ghi các dòng mới vào file
-    # if new_lines_to_append:
-    #     with open(UNSAFEPATH, "a", encoding="utf-8") as f:
-    #         for line in new_lines_to_append:
-    #             f.write(line + "\n")
     if new_lines_to_append: return new_lines_to_append
 
 
