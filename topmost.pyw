@@ -78,10 +78,17 @@ class Overlay(QWidget):
             self.hide()
             menu.hide()
             turn_off_capslock()
+        elif event.key() == Qt.Tab:
+            try:
+                print('Focus Edit line')
+                searchbar.ensure_focus()
+                print('Focus Edit line DONE')
+            except Exception as e:  print("Overlay:KeyPressTab: ", e)
         elif event.key() in [Qt.Key_1, Qt.Key_2, Qt.Key_3]:
             self.selectSignal.emit()
             self.hide()
             turn_off_capslock()
+        event.accept()
 
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.RightButton:
@@ -221,6 +228,7 @@ class TransparentMenu(QWidget):
             self.__doany_and_hide()
         elif event.key() in [Qt.Key_1, Qt.Key_2, Qt.Key_3]:
             self.__excute_and_hide()
+        event.accept()
 
 
     def wheelEvent(self, event: QWheelEvent):
@@ -344,11 +352,12 @@ class NotificationManager:
 
     def add_notification(self, text: str, timeout: int = 10000, position='bottom_right'):
         label = NotificationLabel(text)
-        
-        
+
+
+        # > Màu thông báo
         if any(s in text for s in ("Nguy hiểm", "🆘", "[!]")):
             label.setStyleSheet(RED)
-        elif any(s in text for s in ("Cẩn thận", "🚩", "Error", "AccessDenied")):
+        elif any(s in text for s in ("Cẩn thận", "Error", "AccessDenied")):
             label.setStyleSheet(YELLOW)
 
 
@@ -463,7 +472,7 @@ def KB_show_ui():
     # > Trên trái -> kiểm port Unsafe
     unsafe_ports = list(getglobal_UnsafeSet() or [])
     if unsafe_ports:
-        unsafe_ports.insert(0, "----- PORT ĐÃ MỞ -----")
+        unsafe_ports.insert(0, "[PORT]  [PID]\t\t----- PORT ĐÃ MỞ -----")
         manager.signal.send_top_left.emit("\n".join(unsafe_ports), 3000)
 
     # > Trên phải -> kiểm port Safe
@@ -566,8 +575,10 @@ if __name__ == "__main__":
             padding: 4px 6px;
         }
     """
-    YELLOW = NOTIFY_STYLE.replace('color: rgba(100, 225, 150, 1)', 'color: rgba(213, 150, 0, 1)')
-    RED    = NOTIFY_STYLE.replace('color: rgba(100, 225, 150, 1)', 'color: rgba(255, 0, 0, 0.9)')
+    YELLOW = NOTIFY_STYLE.replace(  'color: rgba(100, 225, 150, 1)', 
+                                    'color: rgb(221, 210, 1)')
+    RED    = NOTIFY_STYLE.replace(  'color: rgba(100, 225, 150, 1)', 
+                                    'color: rgba(255, 0, 0, 0.9)')
 
     app = QApplication(sys.argv)
     img1 = QPixmap(r"D:\Data\Code Resource\circuit.png")

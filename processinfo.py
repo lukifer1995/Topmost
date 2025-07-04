@@ -5,7 +5,7 @@ import subprocess
 import win32com.client
 import os
 import re
-
+import traceback
 
 
 # ------------------------- Signature Checking -------------------------
@@ -39,10 +39,11 @@ def check_signature_wintrust(exe_path):
 def is_fromusb_or_suspicious(path):
     suspicious_dirs = ['\\usb', 'removable', 'temp', 'downloads']
     path = path.lower()
-    if any(s in path for s in suspicious_dirs):
-        return "Ngoại vi"
+    matches = [s for s in suspicious_dirs if s in path]
+    if matches:
+        return f"Khu vực không kiểm soát: {', '.join(matches)}"
     else:
-        return "An toàn"
+        return "Khu vực an toàn"
 
 
 # ------------------------- DLL Injection Detection -------------------------
@@ -155,8 +156,8 @@ class ProcessInspector:
 
             # ✅ Kiểm tra nguồn gốc USB
             info['from'] = is_fromusb_or_suspicious(info['exe'])
-            if info['from'] != "An toàn":
-                warnings.append("Chạy từ USB hoặc thư mục nghi vấn")
+            if info['from'] != "Khu vực an toàn":
+                warnings.append("Chạy từ khu vực không kiểm soát")
 
             # ✅ Kiểm tra chữ ký số
             info['signed'] = check_signature_sigcheck(info['exe'])
@@ -199,7 +200,8 @@ class ProcessInspector:
             info['Kết quả'] = "\n".join(map(str, warnings)) if warnings else None
             return info
 
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as e:
+            print(e)
             return None
 
 
@@ -214,10 +216,16 @@ def analyze_process_by_name(name):
 
     for proc in matched:
         inspector = ProcessInspector(proc)
-        result = inspector.scan()
+        if isinstance is None:
+            print(f'Không đủ quyền truy cập {proc}')
+            return None
+        else:
+            result = inspector.scan()
+            if result is None: 
+                return None
 
         # ===== Thu DLL bị inject =====
-        dlls = result.get("dll_injected")
+        dlls = result.get("dll_injected", None)
         if dlls and dlls != "Không xâm nhiễm":
             if isinstance(dlls, list):
                 all_dll_injected.extend(dlls)
@@ -225,13 +233,13 @@ def analyze_process_by_name(name):
                 all_dll_injected.append(str(dlls))
 
         # ===== Thu các IP đang connect =====
-        connects = result.get("connections")
+        connects = result.get("connections", None)
         if connects:
             for line in connects:
                 all_connections.add(line)
 
         # ===== Nếu process này bị cảnh báo thì dừng sớm
-        if result.get("Kết quả"):
+        if result.get("Kết quả", None):
             final_result = result
             break
 
@@ -268,7 +276,7 @@ def analyze_process_by_name(name):
 
 
 if __name__ == "__main__":
-    a = analyze_process_by_name("EDGE")
+    a = analyze_process_by_name("system")
     print(a)
 
 # # ------------------------- Demo Run -------------------------

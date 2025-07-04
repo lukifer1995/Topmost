@@ -16,6 +16,8 @@ import subprocess
 import re
 import psutil
 from checkport import getglobal_UnsafePort
+import traceback
+
 
 
 def find_process_by_port(port: int):
@@ -53,33 +55,46 @@ def find_process_by_port(port: int):
 
 def find_process_by_pid(pid: int):
     try:
-        proc = psutil.Process(pid)
+        proc = psutil.Process(int(pid))
         return proc.name()
     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
         return None
 
 
 def kill_process_by_name(process_name):
+    """Kill all processing """
+    if not process_name: return
     if not process_name.endswith('exe'):
         process_name = f"{process_name}.exe".replace("..", ".")
     try:
+        print_on_screen()
         result = subprocess.run(
             ["taskkill", "/IM", process_name, "/F"],
             capture_output=True,
             text=True,
             shell=False
         )
-        print("Kết quả:")
-        print(result.stdout)
+        print_on_screen("----- KILLIG PROCESSING... ------")
+        print_on_screen(result.stdout)
         if result.stderr:
-            print("Lỗi:")
+            print_on_screen("----- ERROR ------")
             print(result.stderr)
+        print_on_screen('----- DONE ----------------------')
     except Exception as e:
-        print("Lỗi khi chạy taskkill:", e)
+        print("Lỗi khi chạy kill_process_by_name:", e)
 
 
 def send_func_module(func):
     globals()["MESS"] = func
+
+
+def print_on_screen(fstring=None):
+    if "MESS" in globals():
+        if not fstring:
+            MESS.dismiss_manual_labels()                        # type: ignore
+        else:
+            MESS.signal.send_bottom_left.emit(fstring, 3000)    # type: ignore    
+    else:   print(f"{fstring}")
 
 
 class TransparentSearchBar(QWidget):
@@ -164,40 +179,33 @@ class TransparentSearchBar(QWidget):
 
 
     def on_text_changed(self, text):
-        self.last_text = text  # Lưu lại nội dung để xử lý sau
-        self.search_timer.start(400)  # Chờ 600ms không gõ thêm mới xử lý
+        if not text: print_on_screen()  # ~> xóa lúc clear
+        self.last_text = text           # Lưu lại nội dung để xử lý sau
+        self.search_timer.start(400)    # Chờ 600ms không gõ thêm mới xử lý
 
 
     def process_text(self):
         text = self.last_text
-        if not text:
-            if "MESS" in globals():
-                MESS.dismiss_manual_labels()                    # type: ignore
-        else:
-            if "MESS" in globals():
-                MESS.dismiss_manual_labels()                    # type: ignore
-                MESS.signal.send_bottom_left.emit('\t\tLoading ...\n\n\n', 3000) # type: ignore
-
-
         if len(text) > 3:
+            # > PID / PORT
             if text.isdigit():
                 self.img_index = 3
-                rs = find_process_by_port(text)
-                if not rs:  
-                    rs = find_process_by_pid(text)
-                if rs:
-                    detail = processinfo.analyze_process_by_name(rs)
+                name = find_process_by_port(text) or find_process_by_pid(text)
+                if name:    
+                    detail = processinfo.analyze_process_by_name(name)
+                    if detail:  print_on_screen(detail)
+                    else:       print_on_screen(f'\tKhông đủ quyền truy cập: {name}\n\n\n\n')
+                else:
+                    print_on_screen()
+            # > NAME PROCESS
             else:
                 self.img_index = 0
-                detail = processinfo.analyze_process_by_name(text)
+                print_on_screen('Loading ...')
+                detail = processinfo.analyze_process_by_name(text)         
+                print_on_screen() # ~~> xóa màn hình sau khi scan xong
+                if detail:  print_on_screen(detail)
+                else:       print_on_screen(f'Không đủ quyền truy cập: {text}')   
             
-            if detail:  
-                if "MESS" in globals():
-                    MESS.dismiss_manual_labels()                    # type: ignore
-                    MESS.signal.send_bottom_left.emit(detail, 3000) # type: ignore
-                else:
-                    print(detail)
-
             self.set_avatar(self.img_index)
 
 
