@@ -1,3 +1,10 @@
+## Hướng dẫn
+Tải Sigcheck từ microsoft giải nén vào folder Sigcheck chung thư mục gốc
+Khởi động sigcheck.exe và đồng ý giấy phép
+Khởi động topmost.pys
+
+
+
 ## Keyboard :
 -  Caps Lock : Key macro
 -  F1 : mute / unmute
@@ -16,5 +23,4 @@
 
 
 ## License
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
