@@ -4,19 +4,18 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QPixmap, QFont, QColor
 from PyQt5.QtCore import Qt, QEvent, QTimer
-import sys
-from PyQt5.QtWidgets import QDesktopWidget
 
+
+import sys, os
 import psutil
 import subprocess
 import re
 import processinfo
-
-import subprocess
-import re
-import psutil
-from checkport import getglobal_UnsafePort
 import traceback
+
+
+from checkport import *
+
 
 
 
@@ -97,6 +96,7 @@ def print_on_screen(fstring=None):
     else:   print(f"{fstring}")
 
 
+
 class TransparentSearchBar(QWidget):
     def __init__(self,  IMG_PIXMAPS=None):
         super().__init__()
@@ -121,7 +121,7 @@ class TransparentSearchBar(QWidget):
 
         self.search_timer = QTimer(self)
         self.search_timer.setSingleShot(True)
-        self.search_timer.timeout.connect(self.process_text)
+        self.search_timer.timeout.connect(self.process_info)
 
         # QLineEdit
         self.line_edit = QLineEdit()
@@ -181,32 +181,123 @@ class TransparentSearchBar(QWidget):
     def on_text_changed(self, text):
         if not text: print_on_screen()  # ~> xóa lúc clear
         self.last_text = text           # Lưu lại nội dung để xử lý sau
-        self.search_timer.start(400)    # Chờ 600ms không gõ thêm mới xử lý
+        self.Command = ""
+
+        text = text.lower()
+        # ~~> Command : Dừng lâu ms kích hoạt
+        if text.startswith('/'):
+            self.search_timer.start(10000)
 
 
-    def process_text(self):
+        elif text.startswith('cls'):
+            self.Command = "CLS"
+
+
+        if text.startswith('/kill') or text.startswith('kill'):
+            try:
+                self.Command = "KILL"
+                self.last_text = text.split(" ")[-1]
+            except : pass
+
+
+        elif text.startswith('/whe') or text.startswith('wher'):
+            try:     
+                self.last_text = text.split(" ")[-1]
+                self.Command = "WHERE"
+            except : pass
+
+
+        elif text.startswith('/dir') or text.startswith('dir'):
+            try:     
+                self.last_text = text.split(" ")[-1]
+                self.Command = "DIR"
+            except : pass
+
+
+        else:
+            self.search_timer.start(1000)
+
+
+    def process_info(self):
+        print_on_screen()
         text = self.last_text
         if len(text) > 3:
             # > PID / PORT
             if text.isdigit():
-                self.img_index = 3
-                name = find_process_by_port(text) or find_process_by_pid(text)
+                self.set_avatar(1) # Loading
+                name = find_process_by_pid(text) or find_process_by_port(text)
                 if name:    
                     detail = processinfo.analyze_process_by_name(name)
                     if detail:  print_on_screen(detail)
-                    else:       print_on_screen(f'\tKhông đủ quyền truy cập: {name}\n\n\n\n')
+                    else:       print_on_screen(f'\tKhông đủ quyền truy cập: {name}'+'\n'*15)
                 else:
-                    print_on_screen()
+                    # print_on_screen()
+                    self.set_avatar(2) # Done
             # > NAME PROCESS
             else:
-                self.img_index = 0
-                print_on_screen('Loading ...')
+                self.set_avatar(1) # Loading
                 detail = processinfo.analyze_process_by_name(text)         
-                print_on_screen() # ~~> xóa màn hình sau khi scan xong
                 if detail:  print_on_screen(detail)
-                else:       print_on_screen(f'Không đủ quyền truy cập: {text}')   
-            
-            self.set_avatar(self.img_index)
+                else:       print_on_screen(f'Không đủ quyền truy cập: {text}'+'\n'*15)   
+                self.set_avatar(2) # Done
+
+
+    def call_command_process(self):
+        print('test', self.Command)
+        if self.Command == "CLS":
+            setglobal_UnsafeList([])
+            setglobal_UnsafeExe(set())
+            setglobal_safeExe(set())
+            self.line_edit.setText('')
+            self.repaint()
+
+        elif self.Command == "WHERE":
+            # ~> PID
+            if self.last_text.isdigit():
+                try:
+                    p = psutil.Process(int(self.last_text))
+                    print_on_screen()
+                    print_on_screen(p.exe())
+                    self.search_timer.start(10000)
+                except : pass
+            # ~> NAME
+            else:
+                self.process_info()
+
+
+        elif self.Command == "DIR":
+            parts = self.last_text.strip().split()
+            if len(parts) >= 2:
+                target = parts[-1]
+                pid = None
+
+                if target.isdigit():
+                    pid = int(target)
+                else:
+                    try:
+                        # Lấy danh sách tiến trình từ tasklist
+                        result = subprocess.check_output(
+                            ['tasklist', '/fo', 'csv', '/nh'], text=True
+                        )
+                        for line in result.splitlines():
+                            items = line.strip().strip('"').split('","')
+                            if len(items) >= 2 and target.lower() in items[0].lower():
+                                pid = int(items[1])
+                                break
+                    except Exception as e: pass
+
+                if pid is not None:
+                    try:
+                        p = psutil.Process(pid)
+                        exe_dir = os.path.dirname(p.exe())
+                        subprocess.run(f'explorer "{exe_dir}"')
+                        print_on_screen()
+                        print_on_screen(f"Explorer opened: {exe_dir}")
+                    except: pass
+                else:
+                    print_on_screen(f"Process '{target}' not found.")
+            else:
+                print_on_screen()
 
 
     def set_avatar(self, index):
@@ -214,6 +305,7 @@ class TransparentSearchBar(QWidget):
         if isinstance(pixmap, QPixmap) and not pixmap.isNull():
             scaled = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.icon_label.setPixmap(scaled)
+            self.icon_label.repaint()
         else:
             self.icon_label.clear()
 
@@ -224,17 +316,17 @@ class TransparentSearchBar(QWidget):
         elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
             text = self.line_edit.text()
             self.line_edit.clear()
-            if text:
-                if "MESS" in globals():
-                    MESS.dismiss_manual_labels()                    # type: ignore
-                self.img_index = 2
-                if text.isdigit():
-                    name = find_process_by_port(text.strip())
-                    kill_process_by_name(name)
+            if len(text)>3:
+                if not self.Command or self.Command=="KILL":
+                    self.img_index = 2
+                    if text.isdigit():
+                        name = find_process_by_port(text)
+                        kill_process_by_name(name)
+                    else:
+                        kill_process_by_name(text)
+                    self.set_avatar(self.img_index)
                 else:
-                    kill_process_by_name(text.strip())
-                self.set_avatar(self.img_index)
-
+                    self.call_command_process()
         else:
             super().keyPressEvent(event)
 
@@ -251,7 +343,7 @@ class TransparentSearchBar(QWidget):
     def showEvent(self, event):
         global UNSAFEPORT
         super().showEvent(event)
-        UNSAFEPORT = getglobal_UnsafePort()
+        UNSAFEPORT = getglobal_UnsafeExe()
         self.move_to_center()
         self.activateWindow()
         self.raise_()
@@ -261,11 +353,13 @@ class TransparentSearchBar(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    img1 = QPixmap(r"D:\Data\Code Resource\circuit.png")
-    img2 = QPixmap(r"D:\Data\Code Resource\Download Circuit logo design for free.ico")
-    img3 = QPixmap(r"D:\Data\Code Resource\mess.png")
-    img4 = QPixmap(r"D:\Code\itachi.ico")
-    IMG_PIXMAPS = [img1, img2, img3, img4]
+    img1 = QPixmap(r"resource\kill.png")
+    img2 = QPixmap(r"resource\pid.png")
+    img3 = QPixmap(r"resource\port.png")
+    img4 = QPixmap(r"resource\load.png")
+    img5 = QPixmap(r"resource\done.png")
+
+    IMG_PIXMAPS = [img1, img2, img3, img4, img5]
 
 
     bar = TransparentSearchBar(IMG_PIXMAPS)

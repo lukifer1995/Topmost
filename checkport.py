@@ -33,12 +33,7 @@ SAFE_SYSTEM_PORTS = {
     5353, 5355, 49664, 49665, 49666, 49667, 49668, 49669    # Ephemeral fixed port (Windows service)
 }
 
-# # Tên tiến trình an toàn
-# SAFE_PROCESS_NAMES = {
-#     "system", "idle", "svchost.exe", "services.exe", 
-#     "lsass.exe", "wininit.exe", "csrss.exe",
-#     "winlogon.exe", "smss.exe", "explorer.exe", "taskhostw.exe"
-# }
+
 # Tên tiến trình an toàn
 SAFE_PROCESS_NAMES = {
     "system", "idle", 
@@ -55,13 +50,13 @@ SAFE_SYSTEM_EXECUTABLES = {
     r"C:\Windows\System32\smss.exe",
     r"C:\Windows\explorer.exe",
     r"C:\Windows\System32\taskhostw.exe",
-}.union({
-    r"C:\Program Files (x86)\Microsoft\Edge\Application" # Path cần loại trừ
+}.union({ # Path cần loại trừ
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", 
 })
 
-
-SAFE_SYSTEM_PORTS = {}
-SAFE_PROCESS_NAMES = {}
+# [TEST] Giả điều kiện k chặn system
+# SAFE_SYSTEM_PORTS = {}
+# SAFE_PROCESS_NAMES = {}
 # SAFE_SYSTEM_EXECUTABLES = {}
 
 
@@ -71,36 +66,54 @@ def is_ephemeral_port(port: int) -> bool:
 
 def get_process_info(pid: int):
     if pid in (0, 4):
-        return {"pid": pid, "name": "System", "exe": "AccessDenied", "user": None}
+        return {
+            "pid": pid,
+            "name": "System",
+            "exe": "AccessDenied",
+            "user": None,
+            "status": "system"
+        }
 
     try:
         proc = psutil.Process(pid)
     except Exception as e:
-        return {"pid": pid, "name": f"Error: {e}", "exe": "Error", "user": None}
+        return {
+            "pid": pid,
+            "name": f"Error: {e}",
+            "exe": "Error",
+            "user": None,
+            "status": "error"
+        }
 
+    # Trích xuất name từ str(proc) nếu cần
     proc_str = str(proc)
-    # Ví dụ: "psutil.Process(pid=6312, name='svchost.exe', status='running')"
-
     name_match = re.search(r"name='([^']+)'", proc_str)
     name = name_match.group(1) if name_match else "<unknown>"
 
-    # Tìm exe (thử chính thức trước)
+    # exe
     try:
         exe = proc.exe()
     except Exception:
         exe = "AccessDenied"
 
-    # Tìm user (thử chính thức trước)
+    # user
     try:
         user = proc.username()
     except Exception:
         user = None
 
+    # status
+    try:
+        status = proc.status()
+    except Exception:
+        status = "unknown"
+
     return {
         "pid": pid,
         "name": name,
         "exe": exe,
-        "user": user
+        "user": user,
+        "status": status
     }
 
 
@@ -160,13 +173,25 @@ def scan_ports():
     return results
 
 
-UNSAFESET = []
+UNSAFELINE = []
 UNSAFEEXE = set()
-SAFESET   = set()
+SAFEEXE   = set()
 # UNSAFEPATH = "unsafe.txt"
-def getglobal_UnsafeSet():  return UNSAFESET
-def getglobal_UnsafePort():  return UNSAFEEXE
-def getglobal_safeSet():    return SAFESET
+def getglobal_UnsafeList():  return UNSAFELINE
+def getglobal_UnsafeExe():  return UNSAFEEXE
+def getglobal_SafeExe():    return SAFEEXE
+
+
+def setglobal_UnsafeList(var):
+    global UNSAFELINE
+    UNSAFELINE = var
+def setglobal_UnsafeExe(var):  
+    global UNSAFEEXE
+    UNSAFEEXE = var
+def setglobal_safeExe(var):    
+    global SAFEEXE
+    SAFEEXE = var
+
 
 
 def fixed_width(value, width, ellipsis=True):
@@ -184,29 +209,27 @@ def format_port_data():
     lines.append(header)
     lines.append(separator)
 
-    unsafe_lines = []
     new_lines_to_append = []
-
     for port, pid, proto, status, exe, kind, explanation in data:
         if kind == '🔰 Safe':
-            if "exe" in exe:  SAFESET.add(exe.split('\\')[-1])
+            if "exe" in exe:  SAFEEXE.add(exe.split('\\')[-1])
             continue
         
         line = (
-            f"{fixed_width(port, 8)} "
-            f"{fixed_width(pid, 8)} "
-            f"{fixed_width(proto, 8)} "
-            f"{fixed_width(status, 15)} "
+            f"{fixed_width(port, 6)} "
+            f"{fixed_width(pid, 6)} "
+            f"{fixed_width(proto, 6)} "
+            f"{fixed_width(status, 12)} "
             f"{fixed_width(exe, 70)}"
             f"{fixed_width(kind, 20)} "
             f"{explanation}"
         )
-        unsafe_lines.append(line)
-        if port not in UNSAFEEXE:
-            UNSAFEEXE.add(UNSAFEEXE.add(exe.split('\\')[-1]))
+        exe_file = exe.split('\\')[-1]
+        if exe_file not in UNSAFEEXE:
+            UNSAFEEXE.add(UNSAFEEXE.add(exe_file))
 
-        if line not in UNSAFESET :
-            UNSAFESET.append(line)
+        if line not in UNSAFELINE :
+            UNSAFELINE.append(line)
             new_lines_to_append.append(line)
 
     if new_lines_to_append: return new_lines_to_append

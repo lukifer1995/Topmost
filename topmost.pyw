@@ -357,6 +357,10 @@ class NotificationManager:
         # > Màu thông báo
         if any(s in text for s in ("Nguy hiểm", "🆘", "[!]")):
             label.setStyleSheet(RED)
+        elif "SetColor[RED]" in text:
+            text = text.replace("SetColor[RED]", "")
+            label.setText(text)
+            label.setStyleSheet(RED)
         elif any(s in text for s in ("Cẩn thận", "Error", "AccessDenied")):
             label.setStyleSheet(YELLOW)
 
@@ -469,18 +473,26 @@ def KB_show_ui():
     menu.show()
     searchbar.show()
 
+
     # > Trên trái -> kiểm port Unsafe
-    unsafe_ports = list(getglobal_UnsafeSet() or [])
+    unsafe_ports = list(getglobal_UnsafeList() or [])
     if unsafe_ports:
-        unsafe_ports.insert(0, "[PORT]  [PID]\t\t----- PORT ĐÃ MỞ -----")
+        unsafe_ports.insert(0, "[PORT]    [PID]\t\t\t\t----- PORT ĐÃ MỞ -----")
         manager.signal.send_top_left.emit("\n".join(unsafe_ports), 3000)
 
-    # > Trên phải -> kiểm port Safe
-    safe_ports = list(getglobal_safeSet() or [])
-    if safe_ports:
-        manager.signal.send_top_right.emit("\n".join(safe_ports), 3000)
 
-    # Focus vào khung nhập
+    # > Trên phải -> List exe
+    safe_exe   = list(getglobal_SafeExe() or [])
+    unsafe_exe = list(getglobal_UnsafeExe() or [])
+    # Gộp danh sách
+    combined_list = [f"{exe}SetColor[RED]" for exe in unsafe_exe] + safe_exe
+    # Emit nếu có phần tử
+    if combined_list:
+        for port in combined_list:
+            manager.signal.send_top_right.emit(port, 3000)
+
+
+    # > Focus vào khung nhập
     searchbar.ensure_focus()
     searchbar.line_edit.clear()
 
@@ -580,41 +592,49 @@ if __name__ == "__main__":
     RED    = NOTIFY_STYLE.replace(  'color: rgba(100, 225, 150, 1)', 
                                     'color: rgba(255, 0, 0, 0.9)')
 
+
     app = QApplication(sys.argv)
+
+
     img1 = QPixmap(r"D:\Data\Code Resource\circuit.png")
     img2 = QPixmap(r"D:\Data\Code Resource\Download Circuit logo design for free.ico")
-    # img3 = QPixmap(r"D:\Data\Code Resource\mess.png")
+    img3 = QPixmap(r"D:\Data\Code Resource\mess.png")
     img4 = QPixmap(r"D:\Code\itachi.ico")
-    IMG_PIXMAPS = [img1, img2, None, img4]
-    IMG_PIXMAPS = [TransparentMenu.prepare_pixmap(p) for p in IMG_PIXMAPS]
-
-
+    IMG_PIXMAPS = [TransparentMenu.prepare_pixmap(p) for p in [img1, img2, None, img4]]
     menu = TransparentMenu(IMG_PIXMAPS)
-    searchbar = Searchbar.TransparentSearchBar(IMG_PIXMAPS)
+
+
+    img1 = QPixmap(r"resource\error.png")
+    img2 = QPixmap(r"resource\find.png")
+    img3 = QPixmap(r"resource\done.png")
+    searchbar = Searchbar.TransparentSearchBar([img1, img2, img3])
+
 
     overlay = Overlay()
     overlay.shiftSignal.connect(lambda d: menu.shift_current(d))
     overlay.selectSignal.connect(lambda: menu.excute_select_current())
 
 
-    keyListener = KeyListener()
+    keyListener = KeyListener() 
     keyListener.capslock_toggled.connect(lambda on: KB_show_ui() if on else KB_hide_ui())
     keyListener.start() 
 
-    keyboard.add_hotkey('F1',   lambda: keyboard.send('volume mute') ,                          suppress=True)
-    keyboard.add_hotkey('F6',             wrap_mess(next_track,     "NEXT TRACK"    , 2000),    suppress=True)
-    keyboard.on_press_key('F7', lambda _: wrap_mess(hide_window,    "HIDE"          , 3000)())
-    keyboard.on_press_key('F8', lambda _: wrap_mess(doTransparent,  "TRANSPARENT"         )())
+
+    keyboard.add_hotkey('insert',   lambda  : wrap_mess(keyboard.press_and_release('ctrl+z'), "Undo"),  suppress=True)
+    keyboard.add_hotkey('F1',       lambda  : keyboard.send('volume mute') ,                            suppress=True)
+    keyboard.add_hotkey('F6',                 wrap_mess(next_track,     "NEXT TRACK"    , 2000),        suppress=True)
+    keyboard.on_press_key('F7',     lambda _: wrap_mess(hide_window,    "HIDE"          , 3000)())
+    keyboard.on_press_key('F8',     lambda _: wrap_mess(doTransparent,  "TRANSPARENT"         )())
 
 
     manager = NotificationManager()
     MESSAGE = manager.sent_notification_signal()
     MESSAGE.emit("Ready", 1000)     # 1 giây
-    Searchbar.send_func_module(manager)
+    Searchbar.send_func_module(manager) 
 
 
     threading.Thread(target=wrap_checkport, daemon=True).start()
-    # threading.Thread(target=func_ReadMessSpam, daemon=True).start()
+    threading.Thread(target=func_ReadMessSpam, daemon=True).start()
 
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec_())   
