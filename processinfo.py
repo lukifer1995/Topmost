@@ -6,7 +6,7 @@ import win32com.client
 import os
 import re
 import traceback
-
+import checkIP
 
 # ------------------------- Signature Checking -------------------------
 
@@ -41,9 +41,9 @@ def is_fromusb_or_suspicious(path):
     path = path.lower()
     matches = [s for s in suspicious_dirs if s in path]
     if matches:
-        return f"Khu vực không kiểm soát: {', '.join(matches)}"
+        return f"Beyond control: {', '.join(matches)}"
     else:
-        return "Khu vực an toàn"
+        return "Safe zone"
 
 
 # ------------------------- DLL Injection Detection -------------------------
@@ -156,8 +156,8 @@ class ProcessInspector:
 
             # ✅ Kiểm tra nguồn gốc USB
             info['from'] = is_fromusb_or_suspicious(info['exe'])
-            if info['from'] != "Khu vực an toàn":
-                warnings.append("Chạy từ khu vực không kiểm soát")
+            if info['from'] != "Safe zone":
+                warnings.append("Chạy từ Beyond control")
 
             # ✅ Kiểm tra chữ ký số
             info['signed'] = check_signature_sigcheck(info['exe'])
@@ -187,9 +187,12 @@ class ProcessInspector:
                         is_safe = remote_ip.startswith("127.") or remote_ip.startswith("::1")
 
                         rating = "An toàn" if is_safe else "Cẩn thận"
-                        conn_line = f"- {'TCP' if conn.type == socket.SOCK_STREAM else 'UDP':<4} | {conn.status:<12} | {conn.laddr.ip}:{conn.laddr.port:<5} => {remote_ip}:{port:<5}  -> {rating}"
+                        rate = None
+                        if not is_safe:
+                            rate = checkIP.get_ipinfo(f"{remote_ip}:{port}")
+                    
+                        conn_line = f"- {'TCP' if conn.type == socket.SOCK_STREAM else 'UDP':<4} | {remote_ip}:{port:<5} -> {rate or rating}"
                         connections.append(conn_line)
-
                         # log_suspicious_connection(info['name'], remote_ip, port)
 
                 info['connections'] = connections
@@ -276,7 +279,7 @@ def analyze_process_by_name(name):
 
 
 if __name__ == "__main__":
-    a = analyze_process_by_name("system")
+    a = analyze_process_by_name("edge")
     print(a)
 
 # # ------------------------- Demo Run -------------------------

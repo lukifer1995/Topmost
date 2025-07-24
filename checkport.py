@@ -193,7 +193,6 @@ def setglobal_safeExe(var):
     SAFEEXE = var
 
 
-
 def fixed_width(value, width, ellipsis=True):
     s = str(value)
     if len(s) > width:

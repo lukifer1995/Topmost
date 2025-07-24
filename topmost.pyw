@@ -271,6 +271,7 @@ class NotificationLabel(QLabel):
 
         self.setWordWrap(True)
         self.is_manual = False  # default
+        self.is_manual_when_call = False
 
 
         # Bóng đổ
@@ -321,12 +322,16 @@ class NotificationLabel(QLabel):
         self.timer.start(timeout)
 
 
-    def show_with_Notime(self, pos: QPoint, timeout=None):
-        self.is_manual = True
+    def show_with_Notime(self, pos: QPoint, timeout=None, ismanul=True):
+        if ismanul:  
+            self.is_manual = True
+        else:
+            self.is_manual_when_call = True
         self.move(pos)
         self.setWindowOpacity(0.0)
         self.show()
         self.fade_in.start()
+
 
 
     def fade_out(self):
@@ -401,7 +406,7 @@ class NotificationManager:
         elif position == 'top_right':
             x = screen.right() - width - NOTIFY_MARGIN
             y = screen.top() + NOTIFY_MARGIN + (height + NOTIFY_SPACING) * index
-            label.show_with_Notime(QPoint(x, y))
+            label.show_with_Notime(QPoint(x, y), ismanul=False)
         elif position == 'bottom_left':
             x = screen.left() + NOTIFY_MARGIN
             y = screen.bottom() - NOTIFY_MARGIN - height - (NOTIFY_SPACING * index)
@@ -425,6 +430,13 @@ class NotificationManager:
             if getattr(label, 'is_manual', False):
                 label.dismiss()
                 self._remove_label(label)  # ✅ cập nhật ngay danh sách
+
+    def clear_is_manual_when_call(self):
+        for label in self.notifications[:]:
+            if getattr(label, 'is_manual_when_call', False):
+                label.dismiss()
+                self._remove_label(label)  # ✅ cập nhật ngay danh sách
+
 
     def sent_notification_signal(self):
         return self.signal.send_text
@@ -499,6 +511,7 @@ def KB_show_ui():
 
 def KB_hide_ui():
     manager.dismiss_manual_labels()
+    manager.clear_is_manual_when_call()
     menu.hide()
     searchbar.hide()
     searchbar.line_edit.clear()

@@ -1,3 +1,2 @@
-__pycache__/checkport.cpython-311.pyc
-__pycache__/processinfo.cpython-311.pyc
-__pycache__/Searchbar.cpython-311.pyc
+__pycache__/
+*.pyc
